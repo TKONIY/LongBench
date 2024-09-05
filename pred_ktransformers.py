@@ -74,10 +74,10 @@ def parse_args(args=None):
     return parser.parse_args(args)
 
 # This is the customized building prompt for chat models
-def build_chat(tokenizer, prompt, model_name):
-    assert "internlm" in model_name
-    prompt = f"<|User|>:{prompt}<eoh>\n<|Bot|>:"
-    return prompt
+# def build_chat(tokenizer, prompt, model_name):
+#     assert "internlm" in model_name
+#     prompt = f"<|User|>:{prompt}<eoh>\n<|Bot|>:"
+#     return prompt
 
 def post_process(response, model_name):
     assert "internlm" in model_name
