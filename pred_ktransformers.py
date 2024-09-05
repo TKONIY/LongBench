@@ -84,8 +84,12 @@ def post_process(response, model_name):
     response = response.split("<eoa>")[0]
     return response
 
-def get_pred(data, max_length, max_gen, prompt_format, dataset, device, model_name, model2path, out_path):
+def get_pred(data, max_length, max_gen, prompt_format, dataset, device, model_name, model2path, out_path, err_path):
     # device = torch.device(f'cuda:{rank}')
+    # remove out_path
+    if os.path.exists(out_path):
+        os.remove(out_path)
+        
     model, tokenizer = load_model_and_tokenizer(
         model2path[model_name], 
         model_name, 
@@ -119,13 +123,22 @@ def get_pred(data, max_length, max_gen, prompt_format, dataset, device, model_na
         # input_tensor = input["input_ids"]
         assert Config().long_context_config['max_seq_len'] > input_tensor.shape[1] + max_gen, \
             "please change max_seq_len in  ~/.ktransformers/config.yaml"
-        generated_tokens = prefill_and_generate(
-            model=model, 
-            tokenizer=tokenizer, 
-            inputs=input_tensor, 
-            max_new_tokens=max_gen,
-            use_cuda_graph=True,
-            mode="long_context")
+        try: 
+            generated_tokens = prefill_and_generate(
+                model=model, 
+                tokenizer=tokenizer, 
+                inputs=input_tensor, 
+                max_new_tokens=max_gen,
+                use_cuda_graph=True,
+                mode="long_context")
+        except RuntimeError as e:
+            print(e)
+
+            print(f"Error in id={json_obj['_id']}, skip this sample")
+            with open(err_path, "a", encoding="utf-8") as f:
+                json.dump({"id": json_obj['_id']}, f, ensure_ascii=False)
+                f.write('\n')
+            continue
         
         # output = model.generate(
         #     **input,
@@ -162,17 +175,17 @@ if __name__ == '__main__':
     max_length = model2maxlen[model_name]
 
     if args.e:
+        assert 0, "LongBench-E is not supported for ktransformers"
         datasets = ["qasper", "multifieldqa_en", "hotpotqa", "2wikimqa", "gov_report", "multi_news", \
-            "trec", "triviaqa", "passage_count", "passage_retrieval_en", "lcc", "repobench-p"]
+            "trec", "triviaqa", "passage_count", "passage_retrieval_en", "lcc", "repobench-p", "samsum"]
     else:
-        datasets = ["narrativeqa", 
-                    "qasper", 
-                    "multifieldqa_en", 
-                    "multifieldqa_zh", 
-
-                    "hotpotqa", "2wikimqa", "musique", 
-                    "dureader", "gov_report", "qmsum", "multi_news", "vcsum", "trec", "triviaqa", "lsht", 
-                    "passage_count", "passage_retrieval_en", "passage_retrieval_zh", "lcc", "repobench-p"]
+        datasets = [ # "narrativeqa", 
+                    "qasper", "multifieldqa_en", "multifieldqa_zh", 
+                    "hotpotqa", "2wikimqa", "musique", "dureader", "gov_report", "qmsum", "multi_news", "vcsum", 
+                    # "trec", "triviaqa", "lsht", "lcc",  "repobench-p",
+                    "passage_count", "passage_retrieval_en", "passage_retrieval_zh"]
+        
+    # ignore "trec", "triviaqa", "samsum", "lsht", "lcc", "repobench-p"
     
     # we design specific prompt format and max generation length for each task, feel free to modify them to optimize model output
     dataset2prompt = json.load(open("config/dataset2prompt.json", "r"))
@@ -190,11 +203,13 @@ if __name__ == '__main__':
             if not os.path.exists(f"pred_e/{model_name}"):
                 os.makedirs(f"pred_e/{model_name}")
             out_path = f"pred_e/{model_name}/{dataset}.jsonl"
+            err_path = f"pred_e/{model_name}/{dataset}_err.jsonl"
         else:
             data = load_dataset(longbench_script, dataset, split='test')
             if not os.path.exists(f"pred/{model_name}"):
                 os.makedirs(f"pred/{model_name}")
             out_path = f"pred/{model_name}/{dataset}.jsonl"
+            err_path = f"pred/{model_name}/{dataset}_err.jsonl"
         prompt_format = dataset2prompt[dataset]
         # max_gen = dataset2maxlen[dataset]
         max_gen = 256 # max generated, not max_seq_len
@@ -208,4 +223,5 @@ if __name__ == '__main__':
                  device=device, 
                  model_name=model_name,
                  model2path=model2path,
-                 out_path=out_path)
+                 out_path=out_path,
+                 err_path=err_path)
