@@ -92,25 +92,31 @@ def get_pred(data, max_length, max_gen, prompt_format, dataset, device, model_na
         gguf_path=internlm_gguf_path)
     for json_obj in tqdm(data):
         prompt = prompt_format.format(**json_obj)
+        # apply chat template
+        messages = [{"role": "user", "content": prompt}]
+        input_tensor = tokenizer.apply_chat_template(
+            messages, add_generation_prompt=True, return_tensors="pt"
+        )
         # truncate to fit max_length (we suggest truncate in the middle, since the left and right side may contain crucial instructions)
-        tokenized_prompt = tokenizer(prompt, truncation=False, return_tensors="pt").input_ids[0]
+        # tokenized_prompt = tokenizer(prompt, truncation=False, return_tensors="pt").input_ids[0]
+        
         # if "chatglm3" in model_name:
         #     tokenized_prompt = tokenizer(prompt, truncation=False, return_tensors="pt", add_special_tokens=False).input_ids[0]
-        if len(tokenized_prompt) > max_length:
-            half = int(max_length/2)
-            prompt = tokenizer.decode(tokenized_prompt[:half], skip_special_tokens=True)+tokenizer.decode(tokenized_prompt[-half:], skip_special_tokens=True)
-        if dataset not in ["trec", "triviaqa", "samsum", "lsht", "lcc", "repobench-p"]: 
-            prompt = build_chat(tokenizer, prompt, model_name)
-        if "chatglm3" in model_name:
-            if dataset in ["trec", "triviaqa", "samsum", "lsht", "lcc", "repobench-p"]:
-                input = tokenizer(prompt, truncation=False, return_tensors="pt").to(device)
-            else:
-                input = prompt.to(device)
-        else:
-            input = tokenizer(prompt, truncation=False, return_tensors="pt").to(device)
+        # if len(tokenized_prompt) > max_length:
+        #     half = int(max_length/2)
+        #     prompt = tokenizer.decode(tokenized_prompt[:half], skip_special_tokens=True)+tokenizer.decode(tokenized_prompt[-half:], skip_special_tokens=True)
+        # if dataset not in ["trec", "triviaqa", "samsum", "lsht", "lcc", "repobench-p"]: 
+        #     input_tensor = build_chat(tokenizer, prompt, model_name)
+        # if "chatglm3" in model_name:
+        #     if dataset in ["trec", "triviaqa", "samsum", "lsht", "lcc", "repobench-p"]:
+        #         input = tokenizer(prompt, truncation=False, return_tensors="pt").to(device)
+        #     else:
+        #         input = prompt.to(device)
+        # else:
+        #     input = tokenizer(prompt, truncation=False, return_tensors="pt").to(device)
         # context_length = input.input_ids.shape[-1]
         
-        input_tensor = input["input_ids"]
+        # input_tensor = input["input_ids"]
         assert Config().long_context_config['max_seq_len'] > input_tensor.shape[1] + max_gen, \
             "please change max_seq_len in  ~/.ktransformers/config.yaml"
         generated_tokens = prefill_and_generate(
@@ -159,8 +165,13 @@ if __name__ == '__main__':
         datasets = ["qasper", "multifieldqa_en", "hotpotqa", "2wikimqa", "gov_report", "multi_news", \
             "trec", "triviaqa", "passage_count", "passage_retrieval_en", "lcc", "repobench-p"]
     else:
-        datasets = ["narrativeqa", "qasper", "multifieldqa_en", "multifieldqa_zh", "hotpotqa", "2wikimqa", "musique", \
-                    "dureader", "gov_report", "qmsum", "multi_news", "vcsum", "trec", "triviaqa", "lsht", \
+        datasets = ["narrativeqa", 
+                    "qasper", 
+                    "multifieldqa_en", 
+                    "multifieldqa_zh", 
+
+                    "hotpotqa", "2wikimqa", "musique", 
+                    "dureader", "gov_report", "qmsum", "multi_news", "vcsum", "trec", "triviaqa", "lsht", 
                     "passage_count", "passage_retrieval_en", "passage_retrieval_zh", "lcc", "repobench-p"]
     
     # we design specific prompt format and max generation length for each task, feel free to modify them to optimize model output
