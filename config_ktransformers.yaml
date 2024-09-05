@@ -1,0 +1,4 @@
+longbench_script: "/home/yangshen/dataset/LongBench/LongBench.py"
+internlm_gguf_path: "/home/yangshen/code/internlm2_5_to_llama_1m_backup"
+ktransformer_home: "/home/yangshen/code/ktransformers/ktransformers"
+ktransformer_rules_dir: "/home/yangshen/code/ktransformers/ktransformers/optimize/optimize_rules/"
